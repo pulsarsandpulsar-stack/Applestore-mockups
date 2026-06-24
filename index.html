@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AppPreview Studio — App Store Preview Generator</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08080f;
+  --surface:rgba(255,255,255,0.03);
+  --border:rgba(255,255,255,0.07);
+  --border2:rgba(255,255,255,0.12);
+  --text:#fff;
+  --muted:rgba(255,255,255,0.45);
+  --dim:rgba(255,255,255,0.2);
+  --accent:#a78bfa;
+  --accent2:#6366f1;
+}
+body{background:var(--bg);color:var(--text);font-family:'SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* TOPBAR */
+#topbar{height:54px;background:rgba(10,10,20,0.95);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;backdrop-filter:blur(20px);z-index:100}
+#logo{font-size:16px;font-weight:700;background:linear-gradient(135deg,#a78bfa,#818cf8,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.5px}
+#topbar-right{display:flex;align-items:center;gap:8px}
+.size-badge{font-size:11px;color:var(--muted);background:rgba(255,255,255,0.05);padding:4px 10px;border-radius:6px;border:1px solid var(--border)}
+#export-status{font-size:11px;color:#6ee7b7;background:rgba(110,231,183,0.1);padding:4px 10px;border-radius:6px;display:none}
+.btn-primary{background:linear-gradient(135deg,#a78bfa,#6366f1);border:none;border-radius:9px;color:#fff;padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn-secondary{background:rgba(255,255,255,0.07);border:1px solid var(--border2);border-radius:9px;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-secondary:hover{background:rgba(255,255,255,0.11)}
+.btn-primary:hover{opacity:.9}
+
+/* BATCH BAR */
+#batch-bar{background:rgba(167,139,250,0.07);border-bottom:1px solid rgba(167,139,250,0.15);padding:10px 20px;display:none;align-items:center;gap:12px;flex-shrink:0}
+#batch-bar span{font-size:11px;color:var(--muted)}
+
+/* MAIN LAYOUT */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR LEFT */
+#sidebar-left{width:270px;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0}
+#sidebar-left::-webkit-scrollbar{width:4px}
+#sidebar-left::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+
+/* CANVAS */
+#canvas-area{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;background:radial-gradient(ellipse at 50% 40%,#13131f 0%,#08080f 100%);padding:24px}
+#preview-wrap{text-align:center}
+#preview-label{font-size:10px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
+#canvas-box{display:inline-block;border-radius:14px;padding:18px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05)}
+#preview-canvas{display:block;border-radius:8px}
+#preview-note{font-size:10px;color:rgba(255,255,255,0.18);margin-top:10px}
+
+/* SIDEBAR RIGHT */
+#sidebar-right{width:290px;background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;flex-shrink:0}
+#sidebar-right::-webkit-scrollbar{width:4px}
+#sidebar-right::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+
+/* SHARED SIDEBAR COMPONENTS */
+.section{padding:14px 14px 10px;border-bottom:1px solid var(--border)}
+.section-label{font-size:10px;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,0.3);text-transform:uppercase;margin-bottom:9px}
+.platform-grid{display:flex;gap:4px}
+.plat-btn{flex:1;padding:7px 3px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;font-weight:600;cursor:pointer;text-align:center;transition:all .15s;font-family:inherit}
+.plat-btn .icon{font-size:15px;display:block;margin-bottom:2px}
+.plat-btn.active{border-color:rgba(167,139,250,.5);background:rgba(167,139,250,.13);color:#a78bfa}
+.size-btn{width:100%;padding:7px 11px;border-radius:7px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);color:var(--muted);font-size:11px;cursor:pointer;text-align:left;margin-bottom:3px;display:flex;justify-content:space-between;align-items:center;font-family:inherit;transition:all .15s}
+.size-btn.active{border-color:rgba(167,139,250,.4);background:rgba(167,139,250,.09);color:#c4b5fd}
+.size-btn span.dim{font-size:9px;color:rgba(255,255,255,.25)}
+.layout-btn{width:100%;padding:7px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.02);color:var(--muted);font-size:11px;cursor:pointer;text-align:left;margin-bottom:3px;font-family:inherit;transition:all .15s}
+.layout-btn .lname{font-weight:600;display:block}
+.layout-btn .ldesc{font-size:9px;color:rgba(255,255,255,.3);margin-top:1px;display:block}
+.layout-btn.active{border-color:rgba(167,139,250,.4);background:rgba(167,139,250,.09);color:#c4b5fd}
+.layout-btn.active .ldesc{color:rgba(167,139,250,.6)}
+.s-input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#fff;font-size:12px;padding:8px 11px;outline:none;font-family:inherit}
+.s-input:focus{border-color:rgba(167,139,250,.5)}
+
+/* TABS */
+#tabs{display:flex;border-bottom:1px solid var(--border)}
+.tab-btn{flex:1;padding:10px 0;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.07em;font-family:inherit;transition:all .15s}
+.tab-btn.active{border-bottom-color:#a78bfa;color:#a78bfa}
+
+/* TEMPLATES */
+#cat-filter{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.cat-btn{padding:3px 9px;border-radius:5px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.03);color:rgba(255,255,255,.38);font-size:9px;cursor:pointer;font-weight:700;font-family:inherit;transition:all .15s}
+.cat-btn.active{border-color:#a78bfa;background:rgba(167,139,250,.13);color:#a78bfa}
+#template-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.tmpl-card{border-radius:9px;border:1.5px solid rgba(255,255,255,.08);overflow:hidden;cursor:pointer;transition:all .15s}
+.tmpl-card:hover{border-color:rgba(167,139,250,.35);transform:scale(1.02)}
+.tmpl-card.active{border-color:#a78bfa;box-shadow:0 0 0 1px rgba(167,139,250,.3)}
+.tmpl-preview{height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px}
+.tmpl-name{font-size:11px;font-weight:700;text-align:center;line-height:1.2;text-shadow:0 1px 6px rgba(0,0,0,.4)}
+.tmpl-cat{font-size:8px;font-weight:700;border-radius:4px;padding:2px 6px;margin-top:4px}
+
+/* UPLOAD ZONE */
+#upload-zone{border:1.5px dashed rgba(167,139,250,.35);border-radius:9px;padding:18px 12px;text-align:center;cursor:pointer;background:rgba(167,139,250,.04);transition:all .15s}
+#upload-zone:hover{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.6)}
+#upload-zone .uz-icon{font-size:22px;margin-bottom:5px}
+#upload-zone .uz-text{font-size:11px;color:var(--muted)}
+#upload-zone .uz-sub{font-size:9px;color:var(--dim);margin-top:3px}
+#remove-img{width:100%;padding:6px;border-radius:7px;border:1px solid rgba(248,113,113,.3);background:transparent;color:#f87171;font-size:11px;cursor:pointer;margin-top:6px;font-family:inherit}
+
+/* SPECS */
+.spec-platform{margin-bottom:8px}
+.spec-plat-name{font-size:11px;color:var(--muted);margin-bottom:3px}
+.spec-size{font-size:9px;color:rgba(255,255,255,.25);padding-left:8px;line-height:1.9}
+
+/* ACTIVE TEMPLATE INFO */
+#active-tmpl-info{padding:10px 12px;background:rgba(255,255,255,.04);border-radius:8px;border:1px solid rgba(255,255,255,.07)}
+#active-tmpl-name{font-size:13px;font-weight:600;color:#a78bfa}
+#active-tmpl-cat{font-size:10px;color:var(--muted);margin-top:2px}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <div id="logo">AppPreview Studio</div>
+  <div id="topbar-right">
+    <span class="size-badge" id="size-badge">1320×2868px</span>
+    <span id="export-status"></span>
+    <button class="btn-secondary" onclick="toggleBatch()">⚙ Batch</button>
+    <button class="btn-primary" onclick="exportCurrent()">↓ Export PNG</button>
+  </div>
+</div>
+
+<!-- BATCH BAR -->
+<div id="batch-bar">
+  <span>Batch Export:</span>
+  <button class="btn-secondary" onclick="exportPlatform()" id="batch-platform-btn" style="font-size:11px;padding:5px 12px"></button>
+  <button class="btn-primary" onclick="exportAllPlatforms()" style="font-size:11px;padding:5px 12px">All Platforms</button>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- LEFT SIDEBAR -->
+  <div id="sidebar-left">
+
+    <!-- Platform -->
+    <div class="section">
+      <div class="section-label">Platform</div>
+      <div class="platform-grid" id="platform-grid"></div>
+    </div>
+
+    <!-- Size -->
+    <div class="section">
+      <div class="section-label">Canvas Size</div>
+      <div id="size-list"></div>
+    </div>
+
+    <!-- Layout -->
+    <div class="section">
+      <div class="section-label">Layout Style</div>
+      <div id="layout-list"></div>
+    </div>
+
+    <!-- Upload -->
+    <div class="section">
+      <div class="section-label">App Screenshot</div>
+      <div id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <div class="uz-icon">🖼</div>
+        <div class="uz-text" id="upload-text">Click to upload screenshot</div>
+        <div class="uz-sub">PNG, JPG supported</div>
+      </div>
+      <input type="file" id="file-input" accept="image/*" style="display:none" onchange="loadScreenshot(event)"/>
+      <button id="remove-img" onclick="removeScreenshot()" style="display:none">✕ Remove Screenshot</button>
+    </div>
+
+  </div>
+
+  <!-- CANVAS -->
+  <div id="canvas-area">
+    <div id="preview-wrap">
+      <div id="preview-label"></div>
+      <div id="canvas-box">
+        <canvas id="preview-canvas"></canvas>
+      </div>
+      <div id="preview-note"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDEBAR -->
+  <div id="sidebar-right">
+    <div id="tabs">
+      <button class="tab-btn active" onclick="switchTab('design',this)">Design</button>
+      <button class="tab-btn" onclick="switchTab('templates',this)">Templates</button>
+    </div>
+
+    <!-- DESIGN TAB -->
+    <div id="tab-design">
+      <div class="section">
+        <div class="section-label">Headline</div>
+        <input class="s-input" id="inp-headline" value="Your App Name" oninput="render()" placeholder="Your App Name"/>
+      </div>
+      <div class="section">
+        <div class="section-label">Subtitle</div>
+        <input class="s-input" id="inp-subtitle" value="The tagline that sells it" oninput="render()" placeholder="Subtitle text"/>
+      </div>
+      <div class="section">
+        <div class="section-label">Badge Label</div>
+        <input class="s-input" id="inp-badge" value="NEW FEATURE" oninput="render()" placeholder="e.g. PRO · #1 APP"/>
+      </div>
+      <div class="section">
+        <div class="section-label">Active Template</div>
+        <div id="active-tmpl-info">
+          <div id="active-tmpl-name">Aurora</div>
+          <div id="active-tmpl-cat">Premium</div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-label">Apple Store Specs</div>
+        <div id="specs-list"></div>
+      </div>
+    </div>
+
+    <!-- TEMPLATES TAB -->
+    <div id="tab-templates" style="display:none;padding:12px">
+      <div class="section-label" style="margin-bottom:8px">Filter Style</div>
+      <div id="cat-filter"></div>
+      <div id="template-grid"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────────────────
+
+const PLATFORMS = {
+  ios:   { label:'iPhone',      icon:'📱', sizes:[
+    {id:'iphone69', label:'6.9" iPhone',  w:1320, h:2868},
+    {id:'iphone65', label:'6.5" iPhone',  w:1242, h:2688},
+    {id:'iphone55', label:'5.5" iPhone',  w:1242, h:2208},
+  ]},
+  ipad:  { label:'iPad',        icon:'⬛', sizes:[
+    {id:'ipad13',   label:'13" iPad Pro', w:2064, h:2752},
+    {id:'ipad129',  label:'12.9" iPad',   w:2048, h:2732},
+    {id:'ipad11',   label:'11" iPad Pro', w:1668, h:2388},
+  ]},
+  mac:   { label:'Mac',         icon:'💻', sizes:[
+    {id:'mac1280',  label:'1280×800 Mac', w:1280, h:800},
+    {id:'mac1440',  label:'1440×900 Mac', w:1440, h:900},
+  ]},
+  watch: { label:'Apple Watch', icon:'⌚', sizes:[
+    {id:'watch46',  label:'46mm Watch',   w:416,  h:502},
+    {id:'watch44',  label:'44mm Watch',   w:368,  h:448},
+    {id:'watch42',  label:'42mm Watch',   w:352,  h:430},
+    {id:'watch41',  label:'41mm Watch',   w:352,  h:430},
+    {id:'watch40',  label:'40mm Watch',   w:324,  h:394},
+  ]},
+};
+
+const LAYOUTS = [
+  {id:'headline_top',   name:'Headline + Screenshot', desc:'Text top, device bottom'},
+  {id:'screenshot_top', name:'Screenshot + Caption',  desc:'Device top, text bottom'},
+  {id:'centered',       name:'Full Centered',         desc:'Device fills frame'},
+  {id:'minimal',        name:'Minimal',               desc:'Screenshot + subtle label'},
+  {id:'bold',           name:'Bold Statement',        desc:'Large headline, small device'},
+];
+
+const TEMPLATES = [
+  {id:'aurora',    name:'Aurora',         cat:'Premium',  grad:['#0f0c29','#302b63','#24243e'], dir:[0,0,1,1], txt:'#fff',     sub:'rgba(255,255,255,0.65)', acc:'#a78bfa', bbg:'rgba(167,139,250,0.18)', bc:'#a78bfa'},
+  {id:'midnight',  name:'Midnight',       cat:'Dark',     grad:['#0a0a0a','#111111','#0a0a0a'], dir:[0,0,0,1], txt:'#fff',     sub:'rgba(255,255,255,0.55)', acc:'#00d4ff', bbg:'rgba(0,212,255,0.12)',   bc:'#00d4ff'},
+  {id:'solar',     name:'Solar',          cat:'Vibrant',  grad:['#f97316','#fb923c','#fde68a'], dir:[0,0,1,1], txt:'#1c0a00',  sub:'rgba(28,10,0,0.65)',     acc:'#7c2d12', bbg:'rgba(28,10,0,0.1)',      bc:'#7c2d12'},
+  {id:'glacier',   name:'Glacier',        cat:'Light',    grad:['#e0f2fe','#f0f9ff','#e8f5e9'], dir:[0,0,1,1], txt:'#0c4a6e',  sub:'#0369a1',               acc:'#0284c7', bbg:'rgba(2,132,199,0.1)',    bc:'#0284c7'},
+  {id:'rose',      name:'Rose Garden',    cat:'Elegant',  grad:['#fce7f3','#fdf2f8','#ede9fe'], dir:[0,0,1,1], txt:'#831843',  sub:'#9d174d',               acc:'#be185d', bbg:'rgba(190,24,93,0.1)',    bc:'#be185d'},
+  {id:'forest',    name:'Forest',         cat:'Nature',   grad:['#064e3b','#065f46','#047857'], dir:[0,0,1,1], txt:'#fff',     sub:'rgba(255,255,255,0.7)', acc:'#6ee7b7', bbg:'rgba(110,231,183,0.15)', bc:'#6ee7b7'},
+  {id:'obsidian',  name:'Obsidian',       cat:'Dark',     grad:['#1a1a2e','#16213e','#0f3460'], dir:[0,0,1,1], txt:'#fff',     sub:'rgba(255,255,255,0.6)', acc:'#e94560', bbg:'rgba(233,69,96,0.15)',   bc:'#e94560'},
+  {id:'citrus',    name:'Citrus',         cat:'Vibrant',  grad:['#fef08a','#fde047','#facc15'], dir:[0,0,1,1], txt:'#1a0a00',  sub:'rgba(26,10,0,0.6)',     acc:'#92400e', bbg:'rgba(113,63,18,0.1)',    bc:'#92400e'},
+  {id:'slate',     name:'Slate',          cat:'Minimal',  grad:['#f8fafc','#f1f5f9','#f8fafc'], dir:[0,0,0,1], txt:'#0f172a',  sub:'#475569',               acc:'#334155', bbg:'#e2e8f0',               bc:'#94a3b8'},
+  {id:'cosmic',    name:'Cosmic',         cat:'Premium',  grad:['#020617','#1e1b4b','#312e81'], dir:[0,0,1,1], txt:'#fff',     sub:'rgba(255,255,255,0.6)', acc:'#818cf8', bbg:'rgba(129,140,248,0.15)', bc:'#6366f1'},
+  {id:'peach',     name:'Peach Blossom',  cat:'Elegant',  grad:['#fff7ed','#fed7aa','#fdba74'], dir:[0,0,1,1], txt:'#431407',  sub:'#7c2d12',               acc:'#c2410c', bbg:'rgba(154,52,18,0.1)',    bc:'#c2410c'},
+  {id:'neon',      name:'Neon Night',     cat:'Vibrant',  grad:['#050505','#0d0d0d','#050505'], dir:[0,0,1,1], txt:'#fff',     sub:'rgba(255,255,255,0.55)', acc:'#39ff14', bbg:'rgba(57,255,20,0.1)',    bc:'#39ff14'},
+  {id:'sakura',    name:'Sakura',         cat:'Elegant',  grad:['#fff0f6','#ffe4ef','#ffd6e8'], dir:[0,0,1,1], txt:'#6b0033',  sub:'#9d1355',               acc:'#db2777', bbg:'rgba(219,39,119,0.1)',   bc:'#db2777'},
+  {id:'ocean',     name:'Deep Ocean',     cat:'Dark',     grad:['#020c1b','#0a192f','#112240'], dir:[0,0,0,1], txt:'#ccd6f6',  sub:'rgba(204,214,246,0.6)', acc:'#64ffda', bbg:'rgba(100,255,218,0.1)',  bc:'#64ffda'},
+  {id:'lava',      name:'Lava',           cat:'Vibrant',  grad:['#1a0000','#4a0000','#7f0000'], dir:[0,0,1,1], txt:'#fff',     sub:'rgba(255,255,255,0.6)', acc:'#ff4500', bbg:'rgba(255,69,0,0.15)',    bc:'#ff4500'},
+  {id:'mint',      name:'Fresh Mint',     cat:'Light',    grad:['#ecfdf5','#d1fae5','#a7f3d0'], dir:[0,0,1,1], txt:'#064e3b',  sub:'#065f46',               acc:'#059669', bbg:'rgba(5,150,105,0.1)',    bc:'#059669'},
+  {id:'dusk',      name:'Dusk',           cat:'Premium',  grad:['#1a1033','#2d1f55','#3d2b6e'], dir:[0,0,1,1], txt:'#fff',     sub:'rgba(255,255,255,0.6)', acc:'#f0abfc', bbg:'rgba(240,171,252,0.15)', bc:'#c026d3'},
+  {id:'arctic',    name:'Arctic',         cat:'Minimal',  grad:['#f0f4f8','#dde7f0','#c8d8e8'], dir:[0,0,1,1], txt:'#1e3a5f',  sub:'#2d5f8a',               acc:'#1e3a5f', bbg:'rgba(30,58,95,0.08)',    bc:'#4a7fad'},
+];
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+
+let state = {
+  platform: 'ios',
+  sizeId: 'iphone69',
+  layout: 'headline_top',
+  templateId: 'aurora',
+  screenshot: null,
+  showBatch: false,
+};
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+
+function getTemplate(){ return TEMPLATES.find(t=>t.id===state.templateId)||TEMPLATES[0]; }
+function getPlatform(){ return PLATFORMS[state.platform]; }
+function getSize(){ return getPlatform().sizes.find(s=>s.id===state.sizeId)||getPlatform().sizes[0]; }
+function isMac(){ return state.platform==='mac'; }
+function isWatch(){ return state.platform==='watch'; }
+
+function previewScale(sz){
+  const maxW = window.innerWidth - 580;
+  const maxH = window.innerHeight - 120;
+  const sx = maxW / sz.w;
+  const sy = maxH / sz.h;
+  return Math.min(sx, sy, 1);
+}
+
+function hexToRgb(hex){
+  const r=parseInt(hex.slice(1,3),16);
+  const g=parseInt(hex.slice(3,5),16);
+  const b=parseInt(hex.slice(5,7),16);
+  return [r,g,b];
+}
+
+function wrapText(ctx, text, x, y, maxW, lineH){
+  const words = text.split(' ');
+  let line = '';
+  let lines = [];
+  for(let w of words){
+    const test = line ? line+' '+w : w;
+    if(ctx.measureText(test).width > maxW && line){
+      lines.push(line);
+      line = w;
+    } else line = test;
+  }
+  lines.push(line);
+  lines.forEach((l,i)=>ctx.fillText(l,x,y+i*lineH));
+  return lines.length;
+}
+
+// ─── CANVAS DRAW ─────────────────────────────────────────────────────────────
+
+function drawPreview(canvas, sz, scale, forExport){
+  const W = sz.w, H = sz.h;
+  const dpr = forExport ? 1 : (window.devicePixelRatio||1);
+  canvas.width  = Math.round(W * scale * dpr);
+  canvas.height = Math.round(H * scale * dpr);
+  canvas.style.width  = Math.round(W*scale)+'px';
+  canvas.style.height = Math.round(H*scale)+'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale*dpr, scale*dpr);
+
+  const t = getTemplate();
+  const layout = state.layout;
+  const headline = document.getElementById('inp-headline').value||'Your App';
+  const subtitle = document.getElementById('inp-subtitle').value||'';
+  const badge    = document.getElementById('inp-badge').value||'';
+
+  // Background gradient
+  const [c0,c1,c2] = t.grad;
+  const [dx0,dy0,dx1,dy1] = t.dir;
+  const grd = ctx.createLinearGradient(dx0*W, dy0*H, dx1*W, dy1*H);
+  grd.addColorStop(0, c0);
+  grd.addColorStop(0.5, c1);
+  grd.addColorStop(1, c2);
+  ctx.fillStyle = grd;
+  ctx.fillRect(0,0,W,H);
+
+  const mac   = isMac();
+  const watch = isWatch();
+  const isPortrait = H >= W;
+
+  // Layout zones
+  const pad = W * 0.07;
+  let headY, imgY, imgH, imgW, textBottom;
+
+  if(layout==='headline_top'){
+    headY = H * (mac?0.10:0.09);
+    imgY  = H * (mac?0.25:0.32);
+    imgH  = H * (mac?0.62:0.53);
+    imgW  = W * 0.86;
+  } else if(layout==='screenshot_top'){
+    imgY  = H * 0.06;
+    imgH  = H * (mac?0.58:0.52);
+    imgW  = W * 0.86;
+    headY = imgY + imgH + H * 0.06;
+  } else if(layout==='centered'){
+    imgY  = H * 0.08;
+    imgH  = H * 0.84;
+    imgW  = W * 0.86;
+    headY = H * 0.5;
+  } else if(layout==='bold'){
+    headY = H * 0.07;
+    imgY  = H * 0.45;
+    imgH  = H * 0.50;
+    imgW  = W * 0.80;
+  } else { // minimal
+    imgY  = H * 0.06;
+    imgH  = H * 0.80;
+    imgW  = W * 0.86;
+    headY = imgY + imgH + H * 0.04;
+  }
+
+  const imgX = (W - imgW) / 2;
+  const cx   = W / 2;
+
+  // ── BADGE ──
+  if(badge && layout!=='centered' && layout!=='minimal'){
+    const bfSize = Math.round(W * (mac?0.018:0.026));
+    ctx.font = `600 ${bfSize}px -apple-system,sans-serif`;
+    const bw = ctx.measureText(badge).width + W*0.06;
+    const bh = bfSize * 2;
+    const bx = cx - bw/2;
+    const by = headY - bh*1.8;
+    ctx.fillStyle = t.bbg;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, bh, bh/2);
+    ctx.fill();
+    ctx.strokeStyle = t.bc;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = t.acc;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badge, cx, by+bh/2);
+  }
+
+  // ── HEADLINE & SUBTITLE (top layouts) ──
+  if(layout!=='screenshot_top' && layout!=='minimal'){
+    const hfSize = Math.round(W * (mac?0.045:0.065));
+    ctx.font = `700 ${hfSize}px 'SF Pro Display',-apple-system,sans-serif`;
+    ctx.fillStyle = t.txt;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    if(layout==='centered'){
+      ctx.globalAlpha = 0.92;
+      ctx.fillText(headline, cx, H*0.5);
+      ctx.globalAlpha = 1;
+    } else {
+      wrapText(ctx, headline, cx, headY, W*0.88, hfSize*1.2);
+    }
+    if(subtitle && layout!=='centered'){
+      const sfSize = Math.round(W*(mac?0.022:0.030));
+      ctx.font = `400 ${sfSize}px 'SF Pro Text',-apple-system,sans-serif`;
+      ctx.fillStyle = t.sub;
+      const subY = headY + hfSize*1.35;
+      wrapText(ctx, subtitle, cx, subY, W*0.84, sfSize*1.5);
+    }
+  }
+
+  // ── SCREENSHOT / PLACEHOLDER ──
+  const frameR = mac ? 12 : (watch?30:18);
+
+  if(state.screenshot){
+    const img = state._imgEl;
+    if(img && img.complete){
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(imgX, imgY, imgW, imgH, frameR);
+      ctx.clip();
+
+      // cover-fit
+      const ir = img.naturalWidth / img.naturalHeight;
+      const fr = imgW / imgH;
+      let sx,sy,sw,sh;
+      if(ir>fr){ sw=img.naturalHeight*fr; sh=img.naturalHeight; sx=(img.naturalWidth-sw)/2; sy=0; }
+      else      { sw=img.naturalWidth; sh=img.naturalWidth/fr; sx=0; sy=(img.naturalHeight-sh)/2; }
+      ctx.drawImage(img,sx,sy,sw,sh,imgX,imgY,imgW,imgH);
+      ctx.restore();
+
+      // Subtle frame border
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(imgX,imgY,imgW,imgH,frameR);
+      ctx.stroke();
+    }
+  } else {
+    // Placeholder
+    ctx.save();
+    ctx.strokeStyle = t.bc;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([W*0.02, W*0.012]);
+    ctx.globalAlpha = 0.45;
+    ctx.beginPath();
+    ctx.roundRect(imgX,imgY,imgW,imgH,frameR);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+
+    const pfSize = Math.round(W*0.028);
+    ctx.font = `500 ${pfSize}px -apple-system,sans-serif`;
+    ctx.fillStyle = t.bc;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.globalAlpha = 0.55;
+    ctx.fillText('Drop your screenshot here', cx, imgY+imgH/2 - pfSize);
+    ctx.font = `400 ${Math.round(pfSize*0.75)}px -apple-system,sans-serif`;
+    ctx.fillText(`${sz.w} × ${sz.h} px`, cx, imgY+imgH/2 + pfSize*0.6);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // ── BOTTOM TEXT (screenshot_top & minimal) ──
+  if(layout==='screenshot_top' || layout==='minimal'){
+    const hfSize = Math.round(W*(mac?0.04:0.058));
+    ctx.font = `700 ${hfSize}px 'SF Pro Display',-apple-system,sans-serif`;
+    ctx.fillStyle = t.txt;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    if(layout==='minimal'){
+      ctx.globalAlpha = 0.85;
+      wrapText(ctx, headline, cx, headY, W*0.85, hfSize*1.2);
+      ctx.globalAlpha = 1;
+    } else {
+      wrapText(ctx, headline, cx, headY, W*0.85, hfSize*1.2);
+      if(subtitle){
+        const sfSize = Math.round(W*0.026);
+        ctx.font = `400 ${sfSize}px 'SF Pro Text',-apple-system,sans-serif`;
+        ctx.fillStyle = t.sub;
+        wrapText(ctx, subtitle, cx, headY+hfSize*1.35, W*0.82, sfSize*1.5);
+      }
+    }
+  }
+}
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+
+function render(){
+  const sz = getSize();
+  const sc = previewScale(sz);
+  const canvas = document.getElementById('preview-canvas');
+  drawPreview(canvas, sz, sc, false);
+
+  document.getElementById('size-badge').textContent = `${sz.w}×${sz.h}px`;
+  document.getElementById('preview-label').textContent =
+    `${getPlatform().label} — ${sz.label}`;
+  document.getElementById('preview-note').textContent =
+    `Preview at ${Math.round(sc*100)}% — exports at full ${sz.w}×${sz.h}px`;
+}
+
+// ─── EXPORT ──────────────────────────────────────────────────────────────────
+
+function exportSingle(sz, plt, tid){
+  return new Promise(resolve=>{
+    const canvas = document.createElement('canvas');
+    const origPlt  = state.platform;
+    const origSize = state.sizeId;
+    const origTid  = state.templateId;
+    state.platform   = plt  || state.platform;
+    state.sizeId     = sz.id;
+    state.templateId = tid  || state.templateId;
+    drawPreview(canvas, sz, 1, true);
+    state.platform   = origPlt;
+    state.sizeId     = origSize;
+    state.templateId = origTid;
+    canvas.toBlob(blob=>{
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href     = url;
+      a.download = `apppreview_${plt||state.platform}_${sz.id}_${getTemplate().id}.png`;
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      resolve();
+    },'image/png');
+  });
+}
+
+async function exportCurrent(){
+  const sz = getSize();
+  setStatus('Exporting…');
+  await exportSingle(sz);
+  setStatus('✅ Exported!');
+}
+
+async function exportPlatform(){
+  const sizes = getPlatform().sizes;
+  setStatus(`Exporting ${sizes.length} sizes…`);
+  for(const sz of sizes){
+    await exportSingle(sz);
+    await delay(220);
+  }
+  setStatus(`✅ ${sizes.length} files exported!`);
+}
+
+async function exportAllPlatforms(){
+  let count=0;
+  const plts = Object.keys(PLATFORMS);
+  for(const plt of plts){
+    const sizes = PLATFORMS[plt].sizes;
+    for(const sz of sizes){
+      await exportSingle(sz, plt);
+      await delay(180);
+      count++;
+    }
+  }
+  setStatus(`✅ ${count} files across all platforms!`);
+}
+
+function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function setStatus(msg){
+  const el = document.getElementById('export-status');
+  el.textContent = msg;
+  el.style.display = 'inline-block';
+  clearTimeout(setStatus._t);
+  setStatus._t = setTimeout(()=>{ el.style.display='none'; },4000);
+}
+
+// ─── UI BUILDERS ─────────────────────────────────────────────────────────────
+
+function buildPlatforms(){
+  const grid = document.getElementById('platform-grid');
+  grid.innerHTML='';
+  Object.entries(PLATFORMS).forEach(([key,p])=>{
+    const b = document.createElement('button');
+    b.className = 'plat-btn' + (key===state.platform?' active':'');
+    b.innerHTML = `<span class="icon">${p.icon}</span>${p.label}`;
+    b.onclick = ()=>{
+      state.platform = key;
+      state.sizeId   = p.sizes[0].id;
+      buildPlatforms(); buildSizes(); updateBatchBtn(); render();
+    };
+    grid.appendChild(b);
+  });
+}
+
+function buildSizes(){
+  const list = document.getElementById('size-list');
+  list.innerHTML='';
+  getPlatform().sizes.forEach(sz=>{
+    const b = document.createElement('button');
+    b.className='size-btn'+(sz.id===state.sizeId?' active':'');
+    b.innerHTML=`<span>${sz.label}</span><span class="dim">${sz.w}×${sz.h}</span>`;
+    b.onclick=()=>{ state.sizeId=sz.id; buildSizes(); render(); };
+    list.appendChild(b);
+  });
+}
+
+function buildLayouts(){
+  const list = document.getElementById('layout-list');
+  list.innerHTML='';
+  LAYOUTS.forEach(l=>{
+    const b = document.createElement('button');
+    b.className='layout-btn'+(l.id===state.layout?' active':'');
+    b.innerHTML=`<span class="lname">${l.name}</span><span class="ldesc">${l.desc}</span>`;
+    b.onclick=()=>{ state.layout=l.id; buildLayouts(); render(); };
+    list.appendChild(b);
+  });
+}
+
+function buildTemplates(){
+  const cats = ['All',...new Set(TEMPLATES.map(t=>t.cat))];
+  const catFilter = document.getElementById('cat-filter');
+  catFilter.innerHTML='';
+  cats.forEach(c=>{
+    const b = document.createElement('button');
+    b.className='cat-btn'+(c===state._catFilter?' active':'');
+    b.textContent=c;
+    b.onclick=()=>{ state._catFilter=c; buildTemplates(); };
+    catFilter.appendChild(b);
+  });
+
+  const grid = document.getElementById('template-grid');
+  const filtered = !state._catFilter||state._catFilter==='All'
+    ? TEMPLATES : TEMPLATES.filter(t=>t.cat===state._catFilter);
+  grid.innerHTML='';
+  filtered.forEach(t=>{
+    const card = document.createElement('div');
+    card.className='tmpl-card'+(t.id===state.templateId?' active':'');
+    const [c0,c1,c2]=t.grad;
+    const [dx0,dy0,dx1,dy1]=t.dir;
+    const bg=`linear-gradient(${dx0===dx1?'180':'135'}deg,${c0},${c1},${c2})`;
+    card.innerHTML=`<div class="tmpl-preview" style="background:${bg}">
+      <div class="tmpl-name" style="color:${t.txt}">${t.name}</div>
+      <div class="tmpl-cat" style="color:${t.acc};background:${t.bbg};border:1px solid ${t.bc}">${t.cat}</div>
+    </div>`;
+    card.onclick=()=>{ state.templateId=t.id; buildTemplates(); updateActiveTemplate(); render(); };
+    grid.appendChild(card);
+  });
+}
+
+function buildSpecs(){
+  const el = document.getElementById('specs-list');
+  el.innerHTML='';
+  Object.entries(PLATFORMS).forEach(([key,p])=>{
+    const div=document.createElement('div');
+    div.className='spec-platform';
+    div.innerHTML=`<div class="spec-plat-name">${p.icon} ${p.label}</div>`
+      +p.sizes.map(s=>`<div class="spec-size">${s.label}: ${s.w}×${s.h}</div>`).join('');
+    el.appendChild(div);
+  });
+}
+
+function updateActiveTemplate(){
+  const t = getTemplate();
+  document.getElementById('active-tmpl-name').textContent=t.name;
+  document.getElementById('active-tmpl-cat').textContent=t.cat;
+}
+
+function updateBatchBtn(){
+  document.getElementById('batch-platform-btn').textContent=
+    `All ${getPlatform().label} Sizes (${getPlatform().sizes.length})`;
+}
+
+function toggleBatch(){
+  state.showBatch=!state.showBatch;
+  document.getElementById('batch-bar').style.display=state.showBatch?'flex':'none';
+}
+
+function switchTab(tab, btn){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-design').style.display    = tab==='design'?'block':'none';
+  document.getElementById('tab-templates').style.display = tab==='templates'?'block':'none';
+}
+
+// ─── SCREENSHOT ──────────────────────────────────────────────────────────────
+
+function loadScreenshot(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    state.screenshot=ev.target.result;
+    const img=new Image();
+    img.onload=()=>{ state._imgEl=img; render(); };
+    img.src=state.screenshot;
+    document.getElementById('upload-text').textContent='✅ Screenshot loaded';
+    document.getElementById('remove-img').style.display='block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeScreenshot(){
+  state.screenshot=null;
+  state._imgEl=null;
+  document.getElementById('upload-text').textContent='Click to upload screenshot';
+  document.getElementById('remove-img').style.display='none';
+  document.getElementById('file-input').value='';
+  render();
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+
+state._catFilter='All';
+
+buildPlatforms();
+buildSizes();
+buildLayouts();
+buildTemplates();
+buildSpecs();
+updateActiveTemplate();
+updateBatchBtn();
+render();
+
+window.addEventListener('resize', render);
+</script>
+</body>
+</html>
